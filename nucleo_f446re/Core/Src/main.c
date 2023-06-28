@@ -21,7 +21,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include <stdio.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -55,7 +55,10 @@ static void MX_USART2_UART_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-
+int __io_putchar(int ch) {
+	HAL_UART_Transmit(&huart2, (uint8_t *)&ch, 1, 100);
+	return ch;
+}
 /* USER CODE END 0 */
 
 /**
@@ -65,7 +68,8 @@ static void MX_USART2_UART_Init(void);
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-
+  int led_low_cnt = 0;
+  int led_high_cnt = 0;
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -88,18 +92,32 @@ int main(void)
   MX_GPIO_Init();
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
-  char hello_world_msg[] = "Hello, World.\r\n";
-  HAL_UART_Transmit(&huart2, (const uint8_t*)hello_world_msg, sizeof(hello_world_msg), 1000);
+  setbuf(stdout, NULL);
+
+  char hello_world_msg[] = "Hello, World.";
+//  HAL_UART_Transmit(&huart2, (const uint8_t*)hello_world_msg, sizeof(hello_world_msg), 1000);
+  printf("%s\r\n", hello_world_msg);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	if (HAL_GPIO_ReadPin(B1_GPIO_Port, B1_Pin) == GPIO_PIN_SET) {
-		HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_SET);
+	GPIO_PinState b1_pin = HAL_GPIO_ReadPin(B1_GPIO_Port, B1_Pin);
+	if (b1_pin == GPIO_PIN_SET) {
+		if (led_low_cnt == 0 || led_high_cnt == 1) {
+			HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_SET);
+			led_low_cnt = 1;
+			led_high_cnt = 0;
+			printf("B1_Pin = %d\r\n", b1_pin);
+		}
 	} else {
-		HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_RESET);
+		if (led_high_cnt == 0 || led_low_cnt == 1) {
+			HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_RESET);
+			led_high_cnt = 1;
+			led_low_cnt = 0;
+			printf("B1_Pin = %d\r\n", b1_pin);
+		}
 	}
 
     /* USER CODE END WHILE */
