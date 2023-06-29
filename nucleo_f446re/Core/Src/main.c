@@ -22,6 +22,8 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <stdio.h>
+#include "ntshell.h"
+#include "usrcmd.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -59,6 +61,27 @@ int __io_putchar(int ch) {
 	HAL_UART_Transmit(&huart2, (uint8_t *)&ch, 1, 100);
 	return ch;
 }
+
+static int serial_read(char* buf, int cnt, void* extobj) {
+	int i = 0;
+	while (i < cnt) {
+		if (HAL_UART_Receive(&huart2, (uint8_t*)&buf[i], 1, 0xFFFF) == HAL_OK) {
+			i++;
+		}
+	}
+	return cnt;
+}
+
+static int serial_write(const char* text, int cnt, void* extobj) {
+	HAL_UART_Transmit(&huart2, (uint8_t*)text, cnt, 100);
+	return cnt;
+}
+
+static int user_callback(const char* text, void* extobj) {
+	usrcmd_execute(text);
+	return 0;
+}
+
 /* USER CODE END 0 */
 
 /**
@@ -68,8 +91,7 @@ int __io_putchar(int ch) {
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-  int led_low_cnt = 0;
-  int led_high_cnt = 0;
+  ntshell_t nts;
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -95,30 +117,17 @@ int main(void)
   setbuf(stdout, NULL);
 
   char hello_world_msg[] = "Hello, World.";
-//  HAL_UART_Transmit(&huart2, (const uint8_t*)hello_world_msg, sizeof(hello_world_msg), 1000);
   printf("%s\r\n", hello_world_msg);
+
+  ntshell_init(&nts, serial_read, serial_write, user_callback, 0);
+  ntshell_set_prompt(&nts, ">");
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	GPIO_PinState b1_pin = HAL_GPIO_ReadPin(B1_GPIO_Port, B1_Pin);
-	if (b1_pin == GPIO_PIN_SET) {
-		if (led_low_cnt == 0 || led_high_cnt == 1) {
-			HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_SET);
-			led_low_cnt = 1;
-			led_high_cnt = 0;
-			printf("B1_Pin = %d\r\n", b1_pin);
-		}
-	} else {
-		if (led_high_cnt == 0 || led_low_cnt == 1) {
-			HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_RESET);
-			led_high_cnt = 1;
-			led_low_cnt = 0;
-			printf("B1_Pin = %d\r\n", b1_pin);
-		}
-	}
+	ntshell_execute(&nts);
 
     /* USER CODE END WHILE */
     /* USER CODE BEGIN 3 */
