@@ -35,6 +35,9 @@
 
 #include <stdio.h>
 #include "main.h"
+#include "host_if_spi.h"
+#include <stdlib.h>	// atoi
+
 #define uart_puts printf
 
 typedef int (*USRCMDFUNC)(int argc, char **argv);
@@ -44,6 +47,7 @@ static int usrcmd_help(int argc, char **argv);
 static int usrcmd_info(int argc, char **argv);
 static int read_user_button_b1(int argc, char **argv);
 static int write_led_ld2(int argc, char **argv);
+static int usrcmd_hostif_get_bufsize(int argc, char **argv);
 
 typedef struct {
     char *cmd;
@@ -56,6 +60,16 @@ static const cmd_table_t cmdlist[] = {
     { "info", "This is a description text string for info command.", usrcmd_info },
     { "read_user_button", "User button B1 reads.", read_user_button_b1 },
     { "write_led", "Write to LED LD2.", write_led_ld2 },
+    { "hostif_get_bufsize",  "hostif_get_bufsize [buffer ID = 0..31]\r\nex) hostif_get_bufsize 0", usrcmd_hostif_get_bufsize },
+};
+
+enum {
+  COMMAND_HELP,
+  COMMAND_INFO,
+  COMMAND_READ_USER_BUTTON,
+  COMMAND_WRITE_LED,
+  COMMAND_HOSTIF_GET_BUFSIZE,
+  COMMAND_MAX
 };
 
 
@@ -78,6 +92,16 @@ static int usrcmd_ntopt_callback(int argc, char **argv, void *extobj)
     }
     uart_puts("Unknown command found.\r\n");
     return 0;
+}
+
+static int print_cmd_description(const cmd_table_t* msg)
+{
+  uart_puts(msg->cmd);
+  uart_puts("\t:");
+  uart_puts(msg->desc);
+  uart_puts("\r\n");
+
+  return 0;
 }
 
 static int usrcmd_help(int argc, char **argv)
@@ -122,6 +146,7 @@ static int read_user_button_b1(int argc, char **argv){
 
 	return 0;
 }
+
 static int write_led_ld2(int argc, char **argv){
     if (argc != 2) {
         uart_puts("write_led_ld2 1 or write_led_ld2 0\r\n");
@@ -134,3 +159,30 @@ static int write_led_ld2(int argc, char **argv){
 
 	return 0;
 }
+
+static int usrcmd_hostif_get_bufsize(int argc, char **argv)
+{
+  uint8_t bufid = 0;
+  size_t buf_size;
+
+  if (argc != 2) {
+    print_cmd_description(&cmdlist[COMMAND_HOSTIF_GET_BUFSIZE]);
+    return -1;
+  }
+
+  bufid = atoi(argv[1]);
+  if (!(0 <= bufid && bufid <= 31)) {
+    uart_puts("Error: Buffer ID is 0..31.\r\n");
+    return -1;
+  }
+
+  if (hostif_get_bufsize(bufid, &buf_size) != 0) {
+    uart_puts("Error: status.\r\n");
+    return -1;
+  }
+
+  uart_puts("bufid[%d] size = %d\r\n", bufid, buf_size);
+
+  return 0;
+}
+
