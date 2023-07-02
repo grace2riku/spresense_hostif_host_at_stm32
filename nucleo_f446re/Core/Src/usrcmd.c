@@ -48,6 +48,7 @@ static int usrcmd_info(int argc, char **argv);
 static int read_user_button_b1(int argc, char **argv);
 static int write_led_ld2(int argc, char **argv);
 static int usrcmd_hostif_get_bufsize(int argc, char **argv);
+static int usrcmd_hostif_get_version(int argc, char **argv);
 
 typedef struct {
     char *cmd;
@@ -61,6 +62,7 @@ static const cmd_table_t cmdlist[] = {
     { "read_user_button", "User button B1 reads.", read_user_button_b1 },
     { "write_led", "Write to LED LD2.", write_led_ld2 },
     { "hostif_get_bufsize",  "hostif_get_bufsize [buffer ID = 0..31]\r\nex) hostif_get_bufsize 0", usrcmd_hostif_get_bufsize },
+    { "hostif_get_version",  "hostif_get_version", usrcmd_hostif_get_version },
 };
 
 enum {
@@ -69,6 +71,7 @@ enum {
   COMMAND_READ_USER_BUTTON,
   COMMAND_WRITE_LED,
   COMMAND_HOSTIF_GET_BUFSIZE,
+  COMMAND_HOSTIF_GET_VERSION,
   COMMAND_MAX
 };
 
@@ -186,3 +189,42 @@ static int usrcmd_hostif_get_bufsize(int argc, char **argv)
   return 0;
 }
 
+static int usrcmd_hostif_get_version(int argc, char **argv)
+{
+  uint8_t bufid = 2;
+  size_t buf_size;
+  size_t malloc_len;
+  uint8_t* buffer;
+
+  if (argc != 1) {
+    print_cmd_description(&cmdlist[COMMAND_HOSTIF_GET_VERSION]);
+    return -1;
+  }
+
+  if (hostif_get_bufsize(bufid, &buf_size) != 0) {
+    uart_puts("Error: status.\r\n");
+    return -1;
+  }
+
+  if (buf_size <= 0) {
+    uart_puts("Error: failed to get the size of buffer.\r\n");
+    return -1;
+  }
+
+  // Allocate memory with 3 byte of 2 dummy and status
+  malloc_len = buf_size + 3;
+
+  buffer = (uint8_t*)malloc(malloc_len);
+  if (!buffer) {
+    uart_puts("Error: failed to allocate memory.\r\n");
+    return -1;
+  }
+
+  if (host_receive(bufid, buffer, malloc_len, true) == 0) {
+    uart_puts("version=%s (buff size=%d)\r\n", (char*)&buffer[3], buf_size);
+  }
+
+  free(buffer);
+
+  return 0;
+}
