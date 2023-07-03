@@ -49,6 +49,7 @@ static int read_user_button_b1(int argc, char **argv);
 static int write_led_ld2(int argc, char **argv);
 static int usrcmd_hostif_get_bufsize(int argc, char **argv);
 static int usrcmd_hostif_get_version(int argc, char **argv);
+static int usrcmd_hostif_echo10(int argc, char **argv);
 
 typedef struct {
     char *cmd;
@@ -63,6 +64,7 @@ static const cmd_table_t cmdlist[] = {
     { "write_led", "Write to LED LD2.", write_led_ld2 },
     { "hostif_get_bufsize",  "hostif_get_bufsize [buffer ID = 0..31]\r\nex) hostif_get_bufsize 0", usrcmd_hostif_get_bufsize },
     { "hostif_get_version",  "hostif_get_version", usrcmd_hostif_get_version },
+    { "hostif_echo10",  "hostif send, recv echo * 10 count", usrcmd_hostif_echo10 },
 };
 
 enum {
@@ -72,6 +74,7 @@ enum {
   COMMAND_WRITE_LED,
   COMMAND_HOSTIF_GET_BUFSIZE,
   COMMAND_HOSTIF_GET_VERSION,
+  COMMAND_HOSTIF_ECHO10,
   COMMAND_MAX
 };
 
@@ -225,6 +228,104 @@ static int usrcmd_hostif_get_version(int argc, char **argv)
   }
 
   free(buffer);
+
+  return 0;
+}
+
+int send_data(void) {
+  static int base_data = 0;
+  size_t send_data_len;
+  size_t buffer_size;
+  size_t data_size;
+  uint8_t* buffer;
+  int i;
+
+  if (hostif_get_bufsize(0, &buffer_size) != 0) {
+    uart_puts("Error: get_bufsize status.\r\n");
+    return -1;
+  }
+
+  data_size = 16;
+  send_data_len = data_size + 4;
+
+  buffer = (uint8_t*)malloc(send_data_len);
+  if (!buffer) {
+    uart_puts("Error: failed to allocate memory.\r\n");
+    return -1;
+  }
+
+  for (i = 0; i < data_size; i++) {
+    buffer[i + 3] = (i + base_data) & 0xff;
+  }
+
+  if (host_send(0, buffer, send_data_len) == 0) {
+      uart_puts("Send done.\r\n");
+  }
+
+  free(buffer);
+  base_data++;
+
+  return 0;
+}
+
+
+int receive_data(void) {
+  size_t receive_data_len;
+  size_t buffer_size;
+  uint8_t* buffer;
+  int i;
+  char out[32];
+
+  if (hostif_get_bufsize(1, &buffer_size) != 0) {
+    uart_puts("Error: get_bufsize status.\r\n");
+    return -1;
+  }
+
+  receive_data_len = buffer_size + 3;
+
+  buffer = (uint8_t*)malloc(receive_data_len);
+  if (!buffer) {
+    uart_puts("Error: failed to allocate memory.\r\n");
+    return -1;
+  }
+
+  if (host_receive(1, buffer, receive_data_len, false) == 0) {
+    for (i = 3; i < receive_data_len; i++) {
+      sprintf(out, " %02x", buffer[i]);
+      uart_puts(out);
+    }
+    uart_puts("\r\n");
+  }
+
+  free(buffer);
+  return 0;
+}
+
+
+static int usrcmd_hostif_echo10(int argc, char **argv) {
+  int i;
+
+  if (argc != 1) {
+    print_cmd_description(&cmdlist[COMMAND_HOSTIF_ECHO10]);
+    return -1;
+  }
+
+  for (i = 0; i < 10; i++) {
+    // send
+    if (send_data() != 0) {
+      uart_puts("Error: send data failed.\r\n");
+      return -1;
+    }
+
+    // Wait 10ms
+    HAL_Delay(10);
+
+    // receive
+    if (receive_data() != 0) {
+      uart_puts("Error: receive data failed.\r\n");
+      return -1;
+    }
+  }
 
   return 0;
 }

@@ -69,16 +69,32 @@ int host_receive(int bufid, uint8_t* buffer, size_t len, bool lock) {
 
 int host_send(int bufid, uint8_t* buffer, size_t len) {
   size_t send_data_size = len - 4;
+  uint8_t* rxbuf;
+
+  /* Allocate memory for rx buffer */
+  rxbuf = (uint8_t*)malloc(len);
+  if (!rxbuf) {
+	  printf("Error: failed to allocate memory.\r\n");
+	  return -1;
+  }
 
   buffer[0] = ICMD_VARLEN_TRANS(bufid);
   buffer[1] = send_data_size & 0xff;
   buffer[2] = (send_data_size >> 8) & 0x3f;
 
-//  spi5_write_and_read(buffer, len);
+  HAL_GPIO_WritePin(CS_HOSTIF_GPIO_Port, CS_HOSTIF_Pin, GPIO_PIN_RESET);
+  if (HAL_SPI_TransmitReceive(&hspi2, buffer, rxbuf, len, 1000) != HAL_OK) {
+	HAL_GPIO_WritePin(CS_HOSTIF_GPIO_Port, CS_HOSTIF_Pin, GPIO_PIN_SET);
+	free(rxbuf);
+  	return -1;
+  }
+  HAL_GPIO_WritePin(CS_HOSTIF_GPIO_Port, CS_HOSTIF_Pin, GPIO_PIN_SET);
 
-  if (buffer[2] != 0) {
+  if (rxbuf[2] != 0) {
+	free(rxbuf);
     return -1;
   }
 
+  free(rxbuf);
   return 0;
 }
